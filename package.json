@@ -1,0 +1,49 @@
+{
+  "name": "@cloakui/grid",
+  "version": "0.0.1",
+  "description": "A framework-agnostic JS utility for generating complex, responsive CSS Grid styles.",
+  "main": "dist/index",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsc -p tsconfig.json -w --preserveWatchOutput",
+    "build": "npm run build-ts",
+    "build-ts": "tsc -p tsconfig.json",
+    "clean": "rm -rf .turbo && rm -rf dist && npm run clean:modules",
+    "clean:modules": "rm -rf node_modules"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloak-labs/cloakui-grid.git"
+  },
+  "keywords": [
+    "cloakui",
+    "ui",
+    "grid",
+    "css grid",
+    "grid system",
+    "grid layout",
+    "grid styles",
+    "grid classes",
+    "grid utility"
+  ],
+  "author": "Kaelan Smith",
+  "license": "LGPL-3.0-only",
+  "bugs": {
+    "url": "https://github.com/cloak-labs/cloakui-grid/issues"
+  },
+  "homepage": "https://github.com/cloak-labs/cloakui-grid#readme",
+  "devDependencies": {
+    "@types/node": "^18.18.1",
+    "tsc-watch": "^5.0.3",
+    "typescript": "^5.3.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
