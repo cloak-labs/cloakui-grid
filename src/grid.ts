@@ -1,26 +1,28 @@
 import {
   breakpoints,
-  asBreakpointObject,
   fillMissingBreakpoints,
-  getBreakpointValue,
-  getSpanValue,
-  getPatternObject,
-  getResponsiveClassNames,
   getResponsiveCSSVariables,
-  adjustExplicitSpanForNextRow,
-  isEmptyObject,
+  type BreakpointOptions,
+} from "@cloakui/responsive";
+import {
+  asBreakpointObject,
+  getResponsiveClassNames,
   removeRedundantBreakpoints,
+  parseMultiRowPattern,
+  inferColumnCount,
+  isEmptyObject,
+  getSpanValues,
+  getItemSpans,
+  getHiddenClassNames,
 } from "./helpers";
 
-import {
+import type {
   GridOptions,
   GridGenerator,
-  SpanValues,
-  ExplicitSpanValue,
+  ParsedMultiRowPattern,
   SpanPatternMirror,
-  VerticalPatternOptions,
+  SpanValues,
   SpanValue,
-  BreakpointOptions,
 } from "./types";
 
 /**
@@ -29,56 +31,43 @@ import {
  * @returns The grid container styles (`className` & `style` props) and a `getItemStyles` callback which, given a grid item's index, returns a `className` & `style` prop for that grid item. It's up to you to apply these style props to your components.
  */
 export function grid(options: GridOptions): GridGenerator {
-  const { patternDirection = "vertical", totalItems } = options;
-  const spanPattern = asBreakpointObject(options.spanPattern ?? [1]);
+  const { dense = false } = options;
+  const patternByBreakpoint = asBreakpointObject(options.pattern ?? [1]);
   const gap = asBreakpointObject(options.gap ?? "12px");
-
-  const rowHeight = asBreakpointObject(
-    !options.rowHeight || isEmptyObject(options.rowHeight)
-      ? patternDirection === "vertical"
-        ? "auto"
-        : "1fr"
-      : options.rowHeight
-  );
-
+  const rowHeight = asBreakpointObject(options.rowHeight);
   const mirror = fillMissingBreakpoints<SpanPatternMirror>(
     asBreakpointObject(options.mirror ?? false),
     false
   );
+  const limit = asBreakpointObject(options.limit ?? -1, false);
 
-  const patternObjects = breakpoints
-    .map((breakpoint) => {
-      const pattern = getBreakpointValue(spanPattern, breakpoint);
-      if (!pattern) return null;
-      return getPatternObject(
-        pattern,
-        patternDirection,
-        getBreakpointValue(mirror, breakpoint),
-        breakpoint
-      );
-    })
-    .filter(Boolean);
+  // Process span patterns for each breakpoint
+  const patternsByBreakpoint = breakpoints.reduce((acc, breakpoint) => {
+    const pattern = patternByBreakpoint[breakpoint] ?? null;
+    if (!pattern) return acc;
 
-  const columns = {
-    vertical: asBreakpointObject(
-      (options as VerticalPatternOptions).columns ?? {
-        mobile: 1,
-        tablet: 2,
-      }
-    ),
-    horizontal: patternObjects.reduce(
-      (acc, { breakpoint, implicitColumns }) => {
-        acc[breakpoint] = implicitColumns;
-        return acc;
-      },
-      asBreakpointObject([1])
-    ),
-  }[patternDirection];
+    const multiRowPattern = parseMultiRowPattern(pattern);
+    const columnCount = inferColumnCount(multiRowPattern);
+
+    acc[breakpoint] = {
+      multiRowPattern,
+      columnCount,
+    };
+
+    return acc;
+  }, {} as Record<string, { multiRowPattern: ParsedMultiRowPattern; columnCount: number }>);
+
+  // Infer columns for each breakpoint
+  const columns = breakpoints.reduce((acc, breakpoint) => {
+    const pattern = patternsByBreakpoint[breakpoint];
+    if (pattern) acc[breakpoint] = pattern.columnCount;
+    return acc;
+  }, {} as BreakpointOptions<number>);
 
   return {
     gridStyles: {
       className: [
-        "grid",
+        options.inline ? "inline-grid" : "grid",
         getResponsiveClassNames("gap", gap),
         getResponsiveClassNames("rowHeight", rowHeight),
         getResponsiveClassNames("gridCols", columns),
@@ -87,59 +76,45 @@ export function grid(options: GridOptions): GridGenerator {
         ...getResponsiveCSSVariables("g-gap", gap),
         ...getResponsiveCSSVariables("row-h", rowHeight),
         ...getResponsiveCSSVariables("g-cols", columns),
-        ...{
-          vertical: {},
-          horizontal: { gridAutoFlow: "dense" },
-        }[patternDirection],
+        ...(dense ? { gridAutoFlow: "dense" } : {}),
       },
     },
     getItemStyles: ({ index }) => {
-      let responsiveSpans = patternObjects.reduce(
-        (
-          acc,
-          { spans, minSpanLength, getItemSpanValue, breakpoint, isExplicit }
-        ) => {
-          let span;
-          if (patternDirection === "vertical") {
-            const isLastItem = index === totalItems - 1;
-            const rowIndex = Math.floor(
-              index / getBreakpointValue(columns, breakpoint)
-            );
+      // Calculate spans for each breakpoint
+      let responsiveSpans = breakpoints.reduce(
+        (acc, breakpoint) => {
+          const patternData = patternsByBreakpoint[breakpoint];
+          if (!patternData) return acc;
 
-            const { balance = false } = options as VerticalPatternOptions;
+          const { multiRowPattern, columnCount } = patternData;
+          const mirrorValue = mirror[breakpoint] ?? false;
 
-            span =
-              isLastItem && balance ? minSpanLength : getItemSpanValue(index);
+          const { col, row } = getItemSpans(
+            index,
+            columnCount,
+            multiRowPattern,
+            mirrorValue
+          );
 
-            if (isExplicit && rowIndex > 0) {
-              const lastRowNumber = spans.reduce(
-                (max: number, span: ExplicitSpanValue) => {
-                  let [, end] = span.split("/").map(Number);
-                  return Math.max(max, end);
-                },
-                0
-              ) as number;
-
-              span = adjustExplicitSpanForNextRow({
-                explicitSpan: span,
-                previousRowEnd: rowIndex * lastRowNumber,
-              });
-            }
-          } else {
-            span = getItemSpanValue(index);
-          }
-
-          acc.row[breakpoint] = patternDirection === "vertical" ? span : 1;
-          acc.col[breakpoint] = patternDirection === "horizontal" ? span : 1;
+          acc.col[breakpoint] = col;
+          acc.row[breakpoint] = row;
 
           return acc;
         },
         { col: {}, row: {} } as SpanValues
       );
 
-      let rowSpan = removeRedundantBreakpoints(responsiveSpans.row, true);
-      let colSpan = removeRedundantBreakpoints(responsiveSpans.col, true);
+      // Remove redundant breakpoints
+      let rowSpan = removeRedundantBreakpoints<SpanValue>(
+        responsiveSpans.row,
+        true
+      );
+      let colSpan = removeRedundantBreakpoints<SpanValue>(
+        responsiveSpans.col,
+        true
+      );
 
+      // Apply user filters if provided
       const userFilters = options.filters;
       if (userFilters?.spanValues) {
         const filteredSpans = userFilters.spanValues({
@@ -153,16 +128,9 @@ export function grid(options: GridOptions): GridGenerator {
           },
         });
 
-        rowSpan = asBreakpointObject(filteredSpans.row);
-        colSpan = asBreakpointObject(filteredSpans.col);
+        rowSpan = asBreakpointObject<SpanValue>(filteredSpans.row);
+        colSpan = asBreakpointObject<SpanValue>(filteredSpans.col);
       }
-
-      const getSpanValues = (span: BreakpointOptions<SpanValue>) =>
-        Object.fromEntries(
-          Object.entries(span)
-            .filter(([_, span]) => span !== 1) // span values of 1 are redundant
-            .map(([bp, span]) => [bp, getSpanValue(span)])
-        );
 
       const colSpanVars = getResponsiveCSSVariables<string>(
         "c-span",
@@ -174,13 +142,40 @@ export function grid(options: GridOptions): GridGenerator {
         getSpanValues(rowSpan)
       );
 
+      // Calculate width percentages for each breakpoint
+      let lastSpan;
+      const widthPercentages = breakpoints.reduce((acc, breakpoint) => {
+        const patternData = patternsByBreakpoint[breakpoint];
+        if (!patternData) return acc;
+
+        const { columnCount } = patternData;
+        let span = colSpan[breakpoint];
+        if (!span && isEmptyObject(acc)) span = 1;
+
+        const getWidthPercentage = (span: number | string) => {
+          if (typeof span === "number") {
+            return `${(span / columnCount) * 100}%`;
+          } else if (typeof span === "string") {
+            const [start, end] = span.split("/").map(Number);
+            return `${((end - start) / columnCount) * 100}%`;
+          } else if (lastSpan) return getWidthPercentage(lastSpan);
+        };
+
+        if (span) lastSpan = span;
+        const width = getWidthPercentage(span);
+        if (width) acc[breakpoint] = width;
+
+        return acc;
+      }, {} as BreakpointOptions<string>);
+
+      // Generate class names
       let classes = [];
-      if (!isEmptyObject(rowSpanVars)) {
+      if (!isEmptyObject(rowSpanVars))
         classes.push(getResponsiveClassNames("rowSpan", rowSpan));
-      }
-      if (!isEmptyObject(colSpanVars)) {
+      if (!isEmptyObject(colSpanVars))
         classes.push(getResponsiveClassNames("colSpan", colSpan));
-      }
+
+      classes.push(getHiddenClassNames(limit, index));
 
       return {
         className: classes.join(" "),
@@ -188,6 +183,7 @@ export function grid(options: GridOptions): GridGenerator {
           ...rowSpanVars,
           ...colSpanVars,
         },
+        width: widthPercentages,
       };
     },
   };

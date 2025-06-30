@@ -1,22 +1,17 @@
 import {
   asBreakpointObject,
+  getHiddenClassNames,
   getResponsiveClassNames,
-  getResponsiveCSSVariables,
 } from "./helpers";
-import type { OptionalBreakpointOptions, GridGenerator } from "./types";
+import { getResponsiveCSSVariables } from "@cloakui/responsive";
+import type { GridGenerator, MasonryGridOptions } from "./types";
 
-type MasonryGridOptions = {
-  columns?: OptionalBreakpointOptions<number>;
-  gap?: OptionalBreakpointOptions<string>;
-};
-
-export function masonry(
-  options: MasonryGridOptions
-): Omit<GridGenerator, "getItemStyles"> {
+export function masonry(options: MasonryGridOptions): GridGenerator {
   const columns = asBreakpointObject(
     options.columns ?? { mobile: 1, tablet: 2 }
   );
   const gap = asBreakpointObject(options.gap ?? "12px");
+  const limit = asBreakpointObject(options.limit ?? -1, false);
 
   return {
     gridStyles: {
@@ -26,9 +21,25 @@ export function masonry(
         getResponsiveClassNames("spaceY", gap),
       ].join(" "),
       style: {
-        ...getResponsiveCSSVariables("cols", columns),
-        ...getResponsiveCSSVariables("g-gap", gap),
+        ...getResponsiveCSSVariables<number>("cols", columns),
+        ...getResponsiveCSSVariables<string>("g-gap", gap),
       },
+    },
+    getItemStyles: ({ index }) => {
+      // Calculate width percentages for each breakpoint
+      const widthPercentages = Object.entries(columns).reduce(
+        (acc, [breakpoint, columnCount]) => {
+          acc[breakpoint] = `${(1 / columnCount) * 100}%`;
+          return acc;
+        },
+        {} as Record<string, string>
+      );
+
+      return {
+        className: getHiddenClassNames(limit, index),
+        style: {},
+        width: widthPercentages,
+      };
     },
   };
 }

@@ -43,6 +43,9 @@
     "tsc-watch": "^5.0.3",
     "typescript": "^5.3.2"
   },
+  "dependencies": {
+    "@cloakui/responsive": "workspace:*"
+  },
   "publishConfig": {
     "access": "public"
   }
