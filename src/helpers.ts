@@ -35,7 +35,7 @@ export function stringToPattern(pattern: string): UserSpanPattern {
         // Convert numeric strings to numbers
         return /^\d+$/.test(item)
           ? (parseInt(item, 10) as ImplicitSpanValue)
-          : (item as ExplicitSpanValue | ColRowSpanValue);
+          : (item as UserSpanValue);
       });
 
   // Check if it's a multi-row pattern (contains commas)
@@ -56,6 +56,7 @@ export function stringToPattern(pattern: string): UserSpanPattern {
  */
 export function getSpanLength(span: SpanValue): number | null {
   if (typeof span === "number") return span;
+  if (span == "_") return 0;
   if (!span.includes("/")) return parseInt(span, 10);
 
   let [start, end] = span.split("/").map(Number);
@@ -80,7 +81,7 @@ export function getSpanValue(span: SpanValue): string {
 export function getSpanValues(spanByBreakpoint: BreakpointOptions<SpanValue>) {
   return Object.fromEntries(
     Object.entries(spanByBreakpoint)
-      .filter(([_, span]) => span !== 1) // span values of 1 are redundant
+      .filter(([_, span]) => span !== 1 && span !== "_") // span values of 1 are redundant, "_" means hidden
       .map(([bp, span]) => [bp, getSpanValue(span)])
   );
 }
@@ -166,6 +167,12 @@ export function maybeResolveShorthandSyntax(
  * @returns The parsed span with col and row components
  */
 export function parseSpan(span: UserSpanValue): ParsedSpan {
+  // Handle "_" as a special case - it means the item is hidden
+  // "_" can only be used standalone, not in col:row syntax
+  if (span === "_") {
+    return { col: "_", row: 1 };
+  }
+
   // Handle number input
   if (typeof span === "number") {
     return { col: span, row: 1 };
@@ -411,6 +418,24 @@ const tailwindClassMap = {
     desktop: "xl:max-2xl:hidden",
     desktopWide: "2xl:hidden",
   },
+  // Classes to show items (override hidden) - hide at breakpoint and above
+  hiddenFrom: {
+    mobile: "hidden",
+    tablet: "sm:hidden",
+    tabletWide: "md:hidden",
+    laptop: "lg:hidden",
+    desktop: "xl:hidden",
+    desktopWide: "2xl:hidden",
+  },
+  // Classes to show items (override hidden)
+  block: {
+    mobile: "block",
+    tablet: "sm:block",
+    tabletWide: "md:block",
+    laptop: "lg:block",
+    desktop: "xl:block",
+    desktopWide: "2xl:block",
+  },
 };
 
 export const getResponsiveClassNames =
@@ -585,6 +610,90 @@ export function getHiddenClassNames(
     if (!isEmptyObject(hiddenBreakpoints)) {
       classes.push(getResponsiveClassNames("hidden", hiddenBreakpoints));
     }
+  }
+
+  return classes.join(" ");
+}
+
+/**
+ * Generates hidden class names for breakpoints where span values are "_"
+ * Uses "hide at breakpoint and above" classes, and adds "block" classes
+ * at breakpoints where the item becomes visible again.
+ * @param colSpan - The column span values by breakpoint
+ * @param rowSpan - The row span values by breakpoint
+ * @returns A string of hidden and block class names
+ */
+/**
+ * Helper to get the actual span value for a breakpoint, looking backwards if undefined
+ */
+function getActualSpanValue(
+  spanByBreakpoint: BreakpointOptions<SpanValue>,
+  breakpoint: string
+): SpanValue | undefined {
+  const bpIndex = breakpoints.indexOf(breakpoint as any);
+  if (bpIndex === -1) return undefined;
+
+  // Check current breakpoint
+  if (spanByBreakpoint[breakpoint] !== undefined) {
+    return spanByBreakpoint[breakpoint];
+  }
+
+  // Look backwards for the most recent value
+  for (let i = bpIndex - 1; i >= 0; i--) {
+    const prevBp = breakpoints[i];
+    if (spanByBreakpoint[prevBp] !== undefined) {
+      return spanByBreakpoint[prevBp];
+    }
+  }
+
+  return undefined;
+}
+
+export function getHiddenClassNamesFromSpans(
+  colSpan: BreakpointOptions<SpanValue>,
+  rowSpan: BreakpointOptions<SpanValue>
+): string {
+  const classes: string[] = [];
+
+  // Find breakpoints where we need to hide (using "hide at breakpoint and above" style)
+  const hideFromBreakpoints: Record<string, boolean> = {};
+
+  // Find breakpoints where we need to show again (override hidden)
+  const showAtBreakpoints: Record<string, boolean> = {};
+
+  // Track the last hidden state to detect transitions
+  let wasHidden = false;
+
+  // Check each breakpoint in order
+  for (const breakpoint of breakpoints) {
+    // Get actual values (looking backwards if undefined due to removeRedundantBreakpoints)
+    const col = getActualSpanValue(colSpan, breakpoint);
+    const row = getActualSpanValue(rowSpan, breakpoint);
+
+    // Determine if this breakpoint is hidden
+    const isHidden = col === "_" || row === "_";
+
+    if (isHidden && !wasHidden) {
+      // Transitioning from visible to hidden - hide at this breakpoint and above
+      hideFromBreakpoints[breakpoint] = true;
+      wasHidden = true;
+    } else if (!isHidden && wasHidden) {
+      // Transitioning from hidden to visible - show at this breakpoint and above
+      showAtBreakpoints[breakpoint] = true;
+      wasHidden = false;
+    } else {
+      wasHidden = isHidden;
+    }
+  }
+
+  // Add hide classes (hide at breakpoint and above)
+  if (!isEmptyObject(hideFromBreakpoints)) {
+    classes.push(getResponsiveClassNames("hiddenFrom", hideFromBreakpoints));
+  }
+
+  // Add block classes to override hidden (show at breakpoint and above)
+  if (!isEmptyObject(showAtBreakpoints)) {
+    classes.push(getResponsiveClassNames("block", showAtBreakpoints));
   }
 
   return classes.join(" ");

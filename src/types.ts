@@ -7,14 +7,18 @@ export type PatternDirection = "horizontal" | "vertical";
 
 export type ImplicitSpanValue = number;
 export type ExplicitSpanValue = `${number}/${number}`;
+export type HiddenSpanValue = "_";
 export type ShorthandExplicitSpanValue =
   | `${number}-${number}`
   | `${number}-${number}-${number}`
   | `${number}-${number}-${number}-${number}`
   | `${number}-${number}-${number}-${number}-${string}`;
 
-export type SpanValue = ImplicitSpanValue | ExplicitSpanValue;
-export type ColRowSpanValue = `${SpanValue}:${SpanValue}`;
+// SpanValue without "_" for use in col:row syntax
+export type NonHiddenSpanValue = ImplicitSpanValue | ExplicitSpanValue;
+export type SpanValue = NonHiddenSpanValue | HiddenSpanValue;
+// ColRowSpanValue cannot use "_" - it's only valid standalone
+export type ColRowSpanValue = `${NonHiddenSpanValue}:${NonHiddenSpanValue}`;
 export type UserSpanValue = SpanValue | ColRowSpanValue;
 
 export type SpanPattern = UserSpanValue[] | ShorthandExplicitSpanValue;
