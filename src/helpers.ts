@@ -5,7 +5,7 @@ import {
   type OptionalBreakpointOptions,
 } from "@cloakui/responsive";
 
-import {
+import type {
   SpanPattern,
   SpanValue,
   ParsedSpan,
@@ -18,7 +18,6 @@ import {
   UserSpanPattern,
   ImplicitSpanValue,
   ExplicitSpanValue,
-  ColRowSpanValue,
 } from "./types";
 
 /**
@@ -113,6 +112,37 @@ export function adjustExplicitSpansForNextRow({
   }
 
   return result;
+}
+
+/**
+ * When repeating a pattern cycle that uses explicit row spans (eg. "1/5" or "3/7"),
+ * we want the next cycle's item to start where its corresponding previous-cycle item ended.
+ *
+ * Example:
+ * - Item 1: "1/5" → Item 3 should start at 5
+ * - Item 2: "3/7" → Item 4 should start at 7
+ *
+ * This intentionally offsets each item independently; if the pattern becomes "invalid"
+ * (eg. later items end up overlapping strangely), that's considered user-controlled.
+ */
+export function adjustExplicitRowSpanForRepeat({
+  explicitRowSpan,
+  previousRowEnd,
+}: {
+  explicitRowSpan: ExplicitSpanValue;
+  previousRowEnd: number;
+}): ExplicitSpanValue {
+  const [start, end] = explicitRowSpan.split("/").map(Number);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end === -1) {
+    return explicitRowSpan;
+  }
+
+  const offset = previousRowEnd - start;
+  const adjustedStart = start + offset;
+  const adjustedEnd = end + offset;
+
+  return `${adjustedStart}/${adjustedEnd}` as ExplicitSpanValue;
 }
 
 /**
@@ -562,10 +592,13 @@ export function getItemSpans(
       previousRowEnd = patternCycle + 1;
     }
 
-    spans = adjustExplicitSpansForNextRow({
-      explicitSpan: spans,
-      previousRowEnd,
-    });
+    spans = {
+      ...spans,
+      row: adjustExplicitRowSpanForRepeat({
+        explicitRowSpan: spans.row,
+        previousRowEnd,
+      }),
+    };
   }
 
   return spans;
