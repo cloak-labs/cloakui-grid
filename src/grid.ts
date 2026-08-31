@@ -6,6 +6,7 @@ import {
 } from "@cloakui/responsive";
 import {
   asBreakpointObject,
+  columnsToEqualSpanPattern,
   getResponsiveClassNames,
   removeRedundantBreakpoints,
   parseMultiRowPattern,
@@ -33,7 +34,11 @@ import type {
  */
 export function grid(options: GridOptions): GridGenerator {
   const { dense = false } = options;
-  const patternByBreakpoint = asBreakpointObject(options.pattern ?? [1]);
+  // Prefer `pattern`; else `columns` (default `{ mobile: 1, tablet: 2 }` when unset).
+  const resolvedPattern =
+    options.pattern ??
+    columnsToEqualSpanPattern(options.columns ?? { mobile: 1, tablet: 2 });
+  const patternByBreakpoint = asBreakpointObject(resolvedPattern);
   const gap = asBreakpointObject(options.gap ?? "12px");
   const rowHeight = asBreakpointObject(options.rowHeight);
   const mirror = fillMissingBreakpoints<SpanPatternMirror>(

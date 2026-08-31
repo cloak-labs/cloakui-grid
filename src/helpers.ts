@@ -21,6 +21,39 @@ import type {
 } from "./types";
 
 /**
+ * Convert a column count into an equal-span pattern.
+ * e.g. `2` → `[1, 1]`, `{ mobile: 1, tablet: 2 }` → `{ mobile: [1], tablet: [1, 1] }`.
+ *
+ * Patterns describe per-item *spans*, so a column count of 2 must become two
+ * span-1 entries — never `[2]` (which means one item spanning 2 columns).
+ */
+export function columnsToEqualSpanPattern(
+  columns: OptionalBreakpointOptions<number>
+): OptionalBreakpointOptions<ImplicitSpanValue[]> {
+  const toPattern = (cols: number): ImplicitSpanValue[] =>
+    Array.from({ length: Math.max(1, cols) }, () => 1);
+
+  if (typeof columns === "number") {
+    return toPattern(columns);
+  }
+
+  if (!isObject(columns)) {
+    return toPattern(1);
+  }
+
+  return Object.entries(columns).reduce(
+    (acc, [breakpoint, cols]) => {
+      if (typeof cols !== "number" || !Number.isFinite(cols) || cols < 1) {
+        return acc;
+      }
+      acc[breakpoint] = toPattern(cols);
+      return acc;
+    },
+    {} as BreakpointOptions<ImplicitSpanValue[]>
+  );
+}
+
+/**
  * Converts a string pattern to the standard array format
  * @param pattern - The pattern string to convert
  * @returns The pattern in array format

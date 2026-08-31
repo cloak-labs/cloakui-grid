@@ -35,6 +35,22 @@ Also note that using this library will likely result in a small amount of unused
 
 ### Basic grid usage
 
+For equal-column grids, prefer the `columns` shortcut (a column *count*, not a span):
+
+```ts
+import grid from "@cloakui/grid";
+
+// 2 equal columns — equivalent to pattern: [1, 1]
+const equal = grid({
+  columns: { mobile: 1, tablet: 2 },
+  gap: "16px",
+});
+```
+
+> **Gotcha:** `pattern: [2]` means one item spanning 2 columns — not “2 columns”. Use `columns: 2` or `pattern: [1, 1]` for a 2-column layout.
+
+For varied item sizes, use `pattern` (per-item column *spans*):
+
 ```ts
 import grid from "@cloakui/grid";
 

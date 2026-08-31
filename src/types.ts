@@ -58,6 +58,14 @@ export type SharedGridOptions = {
 export type GridOptions = SharedGridOptions & {
   /** Defines the pattern of span values for the grid. eg. [1, 3, 2] (implicit spans), ["1/3", "3/6", "6/10"] (explicit spans --> or use special shorthand syntax "1-3-6-10"). */
   pattern?: OptionalBreakpointOptions<SpanPattern | MultiRowSpanPattern>;
+  /**
+   * Shortcut for equal-column grids. `columns: 2` ≡ `pattern: [1, 1]`.
+   * Accepts a single number or per-breakpoint map. Ignored when `pattern` is set.
+   *
+   * Important: this is a *column count*, not a span. Do not pass column counts as
+   * `pattern` (e.g. `pattern: [2]` means one item spanning 2 columns).
+   */
+  columns?: OptionalBreakpointOptions<number>;
   /** Callback function to override the span values for each grid item, enabling more advanced/customized grid patterns. */
   filters?: {
     spanValues?: (props: SpanValueFilterProps) => SpanValues;
