@@ -509,6 +509,10 @@ export const getResponsiveClassNames =
  * top to bottom, left to right; oftentimes you want the items to fill columns from left to right, top to bottom, like a
  * normal CSS grid. This function reorders the items so that they are in the standard grid order.
  *
+ * The destination index uses `rowCount = ceil(n / columnCount)`, so the permutation changes whenever `n` changes.
+ * Do not use this for lists that grow in place (infinite scroll) — existing items will jump columns. Prefer
+ * column stacks (`i % columnCount`) for append-stable masonry.
+ *
  * @param items - The items to order
  * @param columnCount - The number of columns to order the items for
  * @returns The ordered items
