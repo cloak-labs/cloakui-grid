@@ -8,7 +8,7 @@ import type { GridGenerator, MasonryGridOptions } from "./types";
 
 export function masonry(options: MasonryGridOptions): GridGenerator {
   const columns = asBreakpointObject(
-    options.columns ?? { mobile: 1, tablet: 2 }
+    options.columns ?? { mobile: 1, tablet: 2 },
   );
   const gap = asBreakpointObject(options.gap ?? "12px");
   const limit = asBreakpointObject(options.limit ?? -1, false);
@@ -32,7 +32,7 @@ export function masonry(options: MasonryGridOptions): GridGenerator {
           acc[breakpoint] = `${(1 / columnCount) * 100}%`;
           return acc;
         },
-        {} as Record<string, string>
+        {} as Record<string, string>,
       );
 
       return {

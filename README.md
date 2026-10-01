@@ -35,7 +35,7 @@ Also note that using this library will likely result in a small amount of unused
 
 ### Basic grid usage
 
-For equal-column grids, prefer the `columns` shortcut (a column *count*, not a span):
+For equal-column grids, prefer the `columns` shortcut (a column _count_, not a span):
 
 ```ts
 import grid from "@cloakui/grid";
@@ -49,7 +49,7 @@ const equal = grid({
 
 > **Gotcha:** `pattern: [2]` means one item spanning 2 columns — not “2 columns”. Use `columns: 2` or `pattern: [1, 1]` for a 2-column layout.
 
-For varied item sizes, use `pattern` (per-item column *spans*):
+For varied item sizes, use `pattern` (per-item column _spans_):
 
 ```ts
 import grid from "@cloakui/grid";

@@ -28,7 +28,7 @@ import type {
  * span-1 entries — never `[2]` (which means one item spanning 2 columns).
  */
 export function columnsToEqualSpanPattern(
-  columns: OptionalBreakpointOptions<number>
+  columns: OptionalBreakpointOptions<number>,
 ): OptionalBreakpointOptions<ImplicitSpanValue[]> {
   const toPattern = (cols: number): ImplicitSpanValue[] =>
     Array.from({ length: Math.max(1, cols) }, () => 1);
@@ -49,7 +49,7 @@ export function columnsToEqualSpanPattern(
       acc[breakpoint] = toPattern(cols);
       return acc;
     },
-    {} as BreakpointOptions<ImplicitSpanValue[]>
+    {} as BreakpointOptions<ImplicitSpanValue[]>,
   );
 }
 
@@ -114,7 +114,7 @@ export function getSpanValues(spanByBreakpoint: BreakpointOptions<SpanValue>) {
   return Object.fromEntries(
     Object.entries(spanByBreakpoint)
       .filter(([_, span]) => span !== 1 && span !== "_") // span values of 1 are redundant, "_" means hidden
-      .map(([bp, span]) => [bp, getSpanValue(span)])
+      .map(([bp, span]) => [bp, getSpanValue(span)]),
   );
 }
 
@@ -184,7 +184,7 @@ export function adjustExplicitRowSpanForRepeat({
  * @returns True if the span pattern is in shorthand explicit syntax, false otherwise
  */
 export function isShorthandExplicitSyntax(
-  span: SpanPattern
+  span: SpanPattern,
 ): span is ShorthandExplicitSpanValue {
   return (
     typeof span === "string" &&
@@ -210,7 +210,7 @@ export function isExplicitSpan(span: SpanValue): span is ExplicitSpanValue {
  * @returns The converted span pattern in explicit syntax, if it was in shorthand syntax, otherwise the original pattern value
  */
 export function maybeResolveShorthandSyntax(
-  pattern: SpanPattern
+  pattern: SpanPattern,
 ): UserSpanValue[] {
   if (isShorthandExplicitSyntax(pattern)) {
     const positions = pattern.split("-").map(Number);
@@ -257,7 +257,7 @@ export function parseSpan(span: UserSpanValue): ParsedSpan {
  * @returns The parsed multi-row pattern
  */
 export function parseMultiRowPattern(
-  pattern: SpanPattern | MultiRowSpanPattern
+  pattern: SpanPattern | MultiRowSpanPattern,
 ): ParsedMultiRowPattern {
   // Handle array input
   if (Array.isArray(pattern) && pattern.length > 0) {
@@ -267,13 +267,13 @@ export function parseMultiRowPattern(
       return pattern.map((spanOrRowPattern) => {
         if (Array.isArray(spanOrRowPattern)) {
           return maybeResolveShorthandSyntax(spanOrRowPattern).map((span) =>
-            parseSpan(span)
+            parseSpan(span),
           );
         }
 
         if (isShorthandExplicitSyntax(spanOrRowPattern)) {
           return maybeResolveShorthandSyntax(spanOrRowPattern).map((span) =>
-            parseSpan(span)
+            parseSpan(span),
           );
         }
 
@@ -282,7 +282,7 @@ export function parseMultiRowPattern(
     }
 
     const parsedPattern = pattern.map((spanOrRowPattern) =>
-      parseSpan(spanOrRowPattern as SpanValue)
+      parseSpan(spanOrRowPattern as SpanValue),
     ) as ParsedPattern;
 
     return [parsedPattern]; // Return a non-multi-row pattern as a multi-row pattern with a single row, enabling everything else to simply rely on the multi-row pattern type
@@ -328,7 +328,7 @@ export function calculatePatternColumns(rowPattern: ParsedPattern): number {
   // For implicit spans, sum them up
   return rowPattern.reduce(
     (sum, { col }) => sum + (getSpanLength(col) ?? 1),
-    0
+    0,
   );
 }
 
@@ -338,10 +338,10 @@ export function calculatePatternColumns(rowPattern: ParsedPattern): number {
  * @returns The inferred column count
  */
 export function inferColumnCount(
-  multiRowPattern: ParsedMultiRowPattern
+  multiRowPattern: ParsedMultiRowPattern,
 ): number {
   return Math.max(
-    ...multiRowPattern.map((rowPattern) => calculatePatternColumns(rowPattern))
+    ...multiRowPattern.map((rowPattern) => calculatePatternColumns(rowPattern)),
   );
 }
 
@@ -353,7 +353,7 @@ export function inferColumnCount(
  */
 export function removeRedundantBreakpoints<T>(
   options: BreakpointOptions<T>,
-  isSpanValue?: boolean
+  isSpanValue?: boolean,
 ): BreakpointOptions<T> {
   const providedBreakpoints = Object.keys(options).length;
   if (providedBreakpoints === 1) return options; // If there's only one breakpoint already, there's nothing to remove
@@ -394,7 +394,7 @@ export function removeRedundantBreakpoints<T>(
  */
 export function asBreakpointObject<T>(
   option: OptionalBreakpointOptions<T>,
-  removeRedundancies: boolean = true
+  removeRedundancies: boolean = true,
 ): BreakpointOptions<T> {
   return isObject(option)
     ? removeRedundancies
@@ -519,7 +519,7 @@ export const getResponsiveClassNames =
  */
 export function orderItemsForMasonryColumns<T>(
   items: T[],
-  columnCount: number = 2
+  columnCount: number = 2,
 ): T[] {
   const rowCount = Math.ceil(items.length / columnCount);
   const reordered: T[] = new Array(items.length);
@@ -545,7 +545,7 @@ export function getItemSpans(
   index: number,
   columns: number,
   multiRowPattern: ParsedMultiRowPattern,
-  mirror: SpanPatternMirror
+  mirror: SpanPatternMirror,
 ): ParsedSpan {
   // If no patterns, return default
   if (!multiRowPattern.length) return { col: 1, row: 1 };
@@ -553,7 +553,7 @@ export function getItemSpans(
   // Calculate total items in a complete pattern cycle
   const itemsPerPattern = multiRowPattern.reduce(
     (sum, rowPattern) => sum + rowPattern.length,
-    0
+    0,
   );
 
   // Determine which pattern cycle this item belongs to
@@ -610,7 +610,7 @@ export function getItemSpans(
         itemIndexInPreviousCycle,
         columns,
         multiRowPattern,
-        mirror
+        mirror,
       );
 
       if (isExplicitSpan(previousSpans.row)) {
@@ -649,20 +649,23 @@ export function getItemSpans(
  */
 function shouldHideItem(
   index: number,
-  limitByBreakpoint: BreakpointOptions<number>
+  limitByBreakpoint: BreakpointOptions<number>,
 ): Record<keyof BreakpointOptions<any>, boolean> {
-  return breakpoints.reduce((acc, breakpoint) => {
-    const limit = limitByBreakpoint[breakpoint];
-    // If limit is -1 or undefined, don't hide
-    // Otherwise hide if index >= limit
-    acc[breakpoint] = limit !== undefined && limit !== -1 && index >= limit;
-    return acc;
-  }, {} as Record<keyof BreakpointOptions<any>, boolean>);
+  return breakpoints.reduce(
+    (acc, breakpoint) => {
+      const limit = limitByBreakpoint[breakpoint];
+      // If limit is -1 or undefined, don't hide
+      // Otherwise hide if index >= limit
+      acc[breakpoint] = limit !== undefined && limit !== -1 && index >= limit;
+      return acc;
+    },
+    {} as Record<keyof BreakpointOptions<any>, boolean>,
+  );
 }
 
 export function getHiddenClassNames(
   limit: BreakpointOptions<number>,
-  index: number
+  index: number,
 ) {
   const classes = [];
 
@@ -672,10 +675,13 @@ export function getHiddenClassNames(
     const hideByBreakpoint = shouldHideItem(index, limit);
 
     // Generate hidden classes for breakpoints where this item should be hidden
-    const hiddenBreakpoints = breakpoints.reduce((acc, bp) => {
-      if (hideByBreakpoint[bp]) acc[bp] = true;
-      return acc;
-    }, {} as Record<string, boolean>);
+    const hiddenBreakpoints = breakpoints.reduce(
+      (acc, bp) => {
+        if (hideByBreakpoint[bp]) acc[bp] = true;
+        return acc;
+      },
+      {} as Record<string, boolean>,
+    );
 
     if (!isEmptyObject(hiddenBreakpoints)) {
       classes.push(getResponsiveClassNames("hidden", hiddenBreakpoints));
@@ -698,7 +704,7 @@ export function getHiddenClassNames(
  */
 function getActualSpanValue(
   spanByBreakpoint: BreakpointOptions<SpanValue>,
-  breakpoint: string
+  breakpoint: string,
 ): SpanValue | undefined {
   const bpIndex = breakpoints.indexOf(breakpoint as any);
   if (bpIndex === -1) return undefined;
@@ -721,7 +727,7 @@ function getActualSpanValue(
 
 export function getHiddenClassNamesFromSpans(
   colSpan: BreakpointOptions<SpanValue>,
-  rowSpan: BreakpointOptions<SpanValue>
+  rowSpan: BreakpointOptions<SpanValue>,
 ): string {
   const classes: string[] = [];
 

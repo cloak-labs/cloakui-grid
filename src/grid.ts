@@ -43,25 +43,31 @@ export function grid(options: GridOptions): GridGenerator {
   const rowHeight = asBreakpointObject(options.rowHeight);
   const mirror = fillMissingBreakpoints<SpanPatternMirror>(
     asBreakpointObject(options.mirror ?? false),
-    false
+    false,
   );
   const limit = asBreakpointObject(options.limit ?? -1, false);
 
   // Process span patterns for each breakpoint
-  const patternsByBreakpoint = breakpoints.reduce((acc, breakpoint) => {
-    const pattern = patternByBreakpoint[breakpoint] ?? null;
-    if (!pattern) return acc;
+  const patternsByBreakpoint = breakpoints.reduce(
+    (acc, breakpoint) => {
+      const pattern = patternByBreakpoint[breakpoint] ?? null;
+      if (!pattern) return acc;
 
-    const multiRowPattern = parseMultiRowPattern(pattern);
-    const columnCount = inferColumnCount(multiRowPattern);
+      const multiRowPattern = parseMultiRowPattern(pattern);
+      const columnCount = inferColumnCount(multiRowPattern);
 
-    acc[breakpoint] = {
-      multiRowPattern,
-      columnCount,
-    };
+      acc[breakpoint] = {
+        multiRowPattern,
+        columnCount,
+      };
 
-    return acc;
-  }, {} as Record<string, { multiRowPattern: ParsedMultiRowPattern; columnCount: number }>);
+      return acc;
+    },
+    {} as Record<
+      string,
+      { multiRowPattern: ParsedMultiRowPattern; columnCount: number }
+    >,
+  );
 
   // Infer columns for each breakpoint
   const columns = breakpoints.reduce((acc, breakpoint) => {
@@ -99,7 +105,7 @@ export function grid(options: GridOptions): GridGenerator {
             index,
             columnCount,
             multiRowPattern,
-            mirrorValue
+            mirrorValue,
           );
 
           acc.col[breakpoint] = col;
@@ -107,17 +113,17 @@ export function grid(options: GridOptions): GridGenerator {
 
           return acc;
         },
-        { col: {}, row: {} } as SpanValues
+        { col: {}, row: {} } as SpanValues,
       );
 
       // Remove redundant breakpoints
       let rowSpan = removeRedundantBreakpoints<SpanValue>(
         responsiveSpans.row,
-        true
+        true,
       );
       let colSpan = removeRedundantBreakpoints<SpanValue>(
         responsiveSpans.col,
-        true
+        true,
       );
 
       // Apply user filters if provided
@@ -140,21 +146,21 @@ export function grid(options: GridOptions): GridGenerator {
 
       // Filter out "_" spans before generating CSS variables
       const filteredColSpan = Object.fromEntries(
-        Object.entries(colSpan).filter(([_, span]) => span !== "_")
+        Object.entries(colSpan).filter(([_, span]) => span !== "_"),
       ) as BreakpointOptions<SpanValue>;
 
       const filteredRowSpan = Object.fromEntries(
-        Object.entries(rowSpan).filter(([_, span]) => span !== "_")
+        Object.entries(rowSpan).filter(([_, span]) => span !== "_"),
       ) as BreakpointOptions<SpanValue>;
 
       const colSpanVars = getResponsiveCSSVariables<string>(
         "c-span",
-        getSpanValues(filteredColSpan)
+        getSpanValues(filteredColSpan),
       );
 
       const rowSpanVars = getResponsiveCSSVariables<string>(
         "r-span",
-        getSpanValues(filteredRowSpan)
+        getSpanValues(filteredRowSpan),
       );
 
       // Calculate width percentages for each breakpoint (skip "_" spans)
