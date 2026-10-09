@@ -8,6 +8,8 @@ export type PatternDirection = "horizontal" | "vertical";
 export type ImplicitSpanValue = number;
 export type ExplicitSpanValue = `${number}/${number}`;
 export type HiddenSpanValue = "_";
+/** Inserts a spacer with the prefixed column/row span, without consuming a content item. */
+export type GapSpanValue = "+" | `+${NonHiddenSpanValue | ColRowSpanValue}`;
 export type ShorthandExplicitSpanValue =
   | `${number}-${number}`
   | `${number}-${number}-${number}`
@@ -17,9 +19,9 @@ export type ShorthandExplicitSpanValue =
 // SpanValue without "_" for use in col:row syntax
 export type NonHiddenSpanValue = ImplicitSpanValue | ExplicitSpanValue;
 export type SpanValue = NonHiddenSpanValue | HiddenSpanValue;
-// ColRowSpanValue cannot use "_" - it's only valid standalone
+// "_" is only valid standalone; "+" prefixes the entire column/row span.
 export type ColRowSpanValue = `${NonHiddenSpanValue}:${NonHiddenSpanValue}`;
-export type UserSpanValue = SpanValue | ColRowSpanValue;
+export type UserSpanValue = SpanValue | ColRowSpanValue | GapSpanValue;
 
 export type SpanPattern = UserSpanValue[] | ShorthandExplicitSpanValue;
 
@@ -30,6 +32,7 @@ export type UserSpanPattern = SpanPattern | MultiRowSpanPattern;
 export type ParsedSpan = {
   col: SpanValue;
   row: SpanValue;
+  gap?: true;
 };
 
 export type ParsedPattern = ParsedSpan[];
@@ -56,7 +59,7 @@ export type SharedGridOptions = {
 };
 
 export type GridOptions = SharedGridOptions & {
-  /** Defines the pattern of span values for the grid. eg. [1, 3, 2] (implicit spans), ["1/3", "3/6", "6/10"] (explicit spans --> or use special shorthand syntax "1-3-6-10"). */
+  /** Defines the pattern of span values for the grid. eg. [1, 3, 2] (implicit spans), ["1/3", "3/6", "6/10"] (explicit spans --> or use special shorthand syntax "1-3-6-10"). "_" hides a content item; "+" prefixes a spacer span (e.g. "+2", "+2:3") when rendering getLayout(). */
   pattern?: OptionalBreakpointOptions<SpanPattern | MultiRowSpanPattern>;
   /**
    * Shortcut for equal-column grids. `columns: 2` ≡ `pattern: [1, 1]`.
@@ -97,4 +100,15 @@ export type GridGenerator = {
   }: {
     index: number;
   }) => GridStyles & { width: BreakpointOptions<string> };
+};
+
+export type GridLayoutItem = GridStyles & {
+  /** Index in the original items, or null for an empty spacer. */
+  itemIndex: number | null;
+  width: BreakpointOptions<string>;
+};
+
+export type GridLayoutGenerator = GridGenerator & {
+  /** Returns content and responsive spacers in DOM order. Render spacers as empty elements. */
+  getLayout: (itemCount: number) => GridLayoutItem[];
 };

@@ -143,6 +143,97 @@ const mixedPattern = grid({
 });
 ```
 
+### Repeating patterns with explicit rows
+
+Patterns containing explicit row lines (such as `"6:1/3"`) are placed as a
+complete cycle. The generator resolves column and row positions for every
+visible entry, including implicit items and spacers, then moves the next cycle
+below the full height of the previous one. Short items therefore cannot start
+the next cycle inside the space below an earlier short item. Mirrored cycles
+are resolved separately, preserving the full height of each orientation.
+Patterns without explicit rows retain normal CSS auto-placement.
+
+For example:
+
+```ts
+grid({ pattern: stringToPattern("6:1/3 4:1/2, +4, 5/11:2") });
+```
+
+This creates ten columns and a four-row cycle: a six-column item at rows 1–2,
+a four-column item at row 1, a four-column spacer underneath it at row 2, and
+a six-column item aligned right at rows 3–4. The next cycle starts at row 5.
+Explicit column lines are measured from line 1: `"5/11"` requires ten columns,
+even though its occupied span is only six columns wide.
+
+Negative/open-ended row lines are passed through to CSS without a cycle
+offset because they do not describe a finite row height.
+
+### Empty grid cells
+
+Prefix a span with `"+"` to insert an empty cell without consuming a content
+item. Unlike `"_"` (which hides the child at that position), a `"+"` entry adds
+a spacer using the supplied span, with the same CSS generation as content:
+
+- `"+2"`: two columns, one row.
+- `"+1/3"`: explicit column lines 1 through 3.
+- `"+2:3"`: two columns, three rows.
+- `"+1/3:2/4"`: explicit column and row lines.
+- Bare `"+"`: shorthand for `"+1"`.
+
+These entries work in responsive and multi-row patterns, including patterns
+parsed by `stringToPattern`. For example, `[1, "+2", 1]` reserves a two-column
+gap between content items.
+
+The utility generates a layout; your renderer creates the empty elements.
+`getLayout(itemCount)` returns content and spacers in DOM order, with
+`itemIndex: null` for spacers. Each entry includes `className`, `style`, and
+`width`. Render all entries, including spacers hidden at some breakpoints, so
+the same DOM works at every screen size.
+
+```tsx
+const { gridStyles, getLayout } = grid({
+  pattern: { mobile: [1], tablet: [1, "+2", 2] },
+});
+
+return (
+  <div {...gridStyles}>
+    {getLayout(items.length).map(
+      ({ itemIndex, className, style }, slotIndex) =>
+        itemIndex === null ? (
+          <div
+            key={`gap-${slotIndex}`}
+            aria-hidden="true"
+            className={className}
+            style={style}
+          />
+        ) : (
+          <div key={items[itemIndex].id} className={className} style={style}>
+            {items[itemIndex].content}
+          </div>
+        ),
+    )}
+  </div>
+);
+```
+
+The shared kit `Grid` renders these empty divs automatically:
+
+```tsx
+<Grid type="grid" pattern={{ mobile: [1], tablet: [1, "+2", 2] }}>
+  <Card />
+  <Card />
+</Grid>
+```
+
+Patterns repeat and mirror with their spacers. Trailing spacers finish the
+current cycle after the last child; leading spacers from a new cycle are not
+appended. Empty lists render no spacers. A pattern consisting entirely of
+spacer entries throws an error because it cannot place any content.
+
+`getItemStyles({ index })`, span filters, and limits use content indices, excluding
+spacers. Use `getLayout` to render gaps; `getItemStyles` alone only supplies
+styles for the content. Span filters do not run for spacers.
+
 ### Mirroring & dense grids
 
 ```ts
@@ -330,3 +421,18 @@ import {
 const pattern: UserSpanPattern = stringToPattern("1 2 1, 2 1 1");
 const breakpointsObj = asBreakpointObject(pattern);
 ```
+
+### Tests
+
+Run the package's unit suite with `pnpm --filter @cloakui/grid test:unit` from
+the workspace root (or `pnpm test:unit` inside this package). The tests bundle
+the current TypeScript source and use Node's built-in test runner; they need no
+React app, browser, or WordPress backend.
+
+The suite covers parsing, shorthand and multi-row patterns, column inference,
+generated CSS variables and classes, widths, responsive resets, hidden spans,
+limits, filters, mirroring, spacers, and complete-cycle explicit row placement.
+Use `pnpm --filter @cloakui/grid typecheck:tests` to check test types.
+
+React rendering and actual browser geometry are covered separately by
+`pnpm --filter kit test:grid` in the shared kit.

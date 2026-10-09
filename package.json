@@ -17,6 +17,9 @@
     "clean": "rm -rf .turbo && rm -rf dist",
     "clean:modules": "rm -rf node_modules",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node tests/run.mjs",
+    "test:unit": "node tests/run.mjs",
+    "typecheck:tests": "tsc -p tsconfig.tests.json",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check ."
   },
@@ -43,8 +46,9 @@
   "homepage": "https://github.com/cloak-labs/cloakui-grid#readme",
   "devDependencies": {
     "@types/node": "^18.19.130",
-    "typescript": "7.0.2",
-    "oxfmt": "0.71.0"
+    "esbuild": "0.28.0",
+    "oxfmt": "0.71.0",
+    "typescript": "7.0.2"
   },
   "dependencies": {
     "@cloakui/responsive": "workspace:*"

@@ -18,7 +18,10 @@ import type {
   UserSpanPattern,
   ImplicitSpanValue,
   ExplicitSpanValue,
+  NonHiddenSpanValue,
+  ColRowSpanValue,
 } from "./types";
+import { getCyclePlacement } from "./placement";
 
 /**
  * Convert a column count into an equal-span pattern.
@@ -113,7 +116,8 @@ export function getSpanValue(span: SpanValue): string {
 export function getSpanValues(spanByBreakpoint: BreakpointOptions<SpanValue>) {
   return Object.fromEntries(
     Object.entries(spanByBreakpoint)
-      .filter(([_, span]) => span !== 1 && span !== "_") // span values of 1 are redundant, "_" means hidden
+      // A later span of 1 must reset a larger span inherited from below.
+      .filter(([bp, span]) => span !== "_" && (span !== 1 || bp !== "mobile"))
       .map(([bp, span]) => [bp, getSpanValue(span)]),
   );
 }
@@ -131,7 +135,7 @@ export function adjustExplicitSpansForNextRow({
   explicitSpan: ParsedSpan;
   previousRowEnd: number;
 }): ParsedSpan {
-  const result: ParsedSpan = { col: explicitSpan.col, row: explicitSpan.row };
+  const result: ParsedSpan = { ...explicitSpan };
 
   // Adjust row span if it's explicit
   if (isExplicitSpan(explicitSpan.row)) {
@@ -230,6 +234,16 @@ export function maybeResolveShorthandSyntax(
  * @returns The parsed span with col and row components
  */
 export function parseSpan(span: UserSpanValue): ParsedSpan {
+  if (typeof span === "string" && span.startsWith("+")) {
+    const value = span.slice(1) || "1";
+    const parsed = parseSpan(
+      /^-?\d+(?:\.\d+)?$/.test(value)
+        ? Number(value)
+        : (value as NonHiddenSpanValue | ColRowSpanValue),
+    );
+    return { ...parsed, gap: true };
+  }
+
   // Handle "_" as a special case - it means the item is hidden
   // "_" can only be used standalone, not in col:row syntax
   if (span === "_") {
@@ -259,9 +273,15 @@ export function parseSpan(span: UserSpanValue): ParsedSpan {
 export function parseMultiRowPattern(
   pattern: SpanPattern | MultiRowSpanPattern,
 ): ParsedMultiRowPattern {
+  if (isShorthandExplicitSyntax(pattern as SpanPattern)) {
+    return [maybeResolveShorthandSyntax(pattern as SpanPattern).map(parseSpan)];
+  }
   // Handle array input
   if (Array.isArray(pattern) && pattern.length > 0) {
-    const hasNestedArray = pattern.some((item) => Array.isArray(item));
+    const hasNestedArray = pattern.some(
+      (item) =>
+        Array.isArray(item) || isShorthandExplicitSyntax(item as SpanPattern),
+    );
     if (hasNestedArray) {
       // It's already a multi-dimensional array, parse each item
       return pattern.map((spanOrRowPattern) => {
@@ -277,7 +297,7 @@ export function parseMultiRowPattern(
           );
         }
 
-        return parseSpan(spanOrRowPattern as SpanValue);
+        return [parseSpan(spanOrRowPattern as UserSpanValue)];
       }) as ParsedMultiRowPattern;
     }
 
@@ -298,38 +318,23 @@ export function parseMultiRowPattern(
  * @returns The total column span
  */
 export function calculatePatternColumns(rowPattern: ParsedPattern): number {
-  // First, handle the case of explicit column spans
-  let maxColumnEnd = 0;
-  let minColumnStart = Infinity;
-  let hasExplicitSpans = false;
-
+  let explicitColumns = 1;
+  let implicitColumns = 0;
   for (const { col } of rowPattern) {
     if (isExplicitSpan(col)) {
-      hasExplicitSpans = true;
       const [start, end] = col.split("/").map(Number);
-      maxColumnEnd = Math.max(maxColumnEnd, end);
-      minColumnStart = Math.min(minColumnStart, start);
-    }
-  }
-
-  // If we have explicit spans, return the max column end minus the min column start plus 1
-  if (hasExplicitSpans) {
-    // If all spans are explicit, use max end - min start + 1
-    if (rowPattern.every(({ col }) => isExplicitSpan(col))) {
-      return (
-        maxColumnEnd - (minColumnStart === Infinity ? 1 : minColumnStart) + 1
+      // Lines are anchored at 1, so end line 11 requires 10 columns,
+      // even when the first occupied line is 5. Negative lines cannot infer size.
+      explicitColumns = Math.max(
+        explicitColumns,
+        start > 0 ? start - 1 : 1,
+        end > 0 ? end - 1 : 1,
       );
+    } else {
+      implicitColumns += getSpanLength(col) ?? 1;
     }
-
-    // If we have a mix of explicit and implicit spans, use the max end
-    return maxColumnEnd;
   }
-
-  // For implicit spans, sum them up
-  return rowPattern.reduce(
-    (sum, { col }) => sum + (getSpanLength(col) ?? 1),
-    0,
-  );
+  return Math.max(explicitColumns, implicitColumns);
 }
 
 /**
@@ -546,6 +551,7 @@ export function getItemSpans(
   columns: number,
   multiRowPattern: ParsedMultiRowPattern,
   mirror: SpanPatternMirror,
+  dense = false,
 ): ParsedSpan {
   // If no patterns, return default
   if (!multiRowPattern.length) return { col: 1, row: 1 };
@@ -561,6 +567,43 @@ export function getItemSpans(
 
   // Find position within the pattern cycle
   const positionInCycle = index % itemsPerPattern;
+
+  const isMirrored =
+    mirror === "even"
+      ? patternCycle % 2 === 1
+      : mirror === "odd" && patternCycle % 2 === 0;
+  const placement = getCyclePlacement(
+    multiRowPattern,
+    columns,
+    isMirrored,
+    dense,
+  );
+  if (placement) {
+    const spans = placement.spans[positionInCycle];
+    if (typeof spans.row === "string" && spans.row.includes("/")) {
+      const [start, end] = spans.row.split("/").map(Number);
+      let offset = patternCycle * placement.height;
+      if (mirror !== false) {
+        const first = getCyclePlacement(
+          multiRowPattern,
+          columns,
+          mirror === "odd",
+          dense,
+        );
+        const second = getCyclePlacement(
+          multiRowPattern,
+          columns,
+          mirror === "even",
+          dense,
+        );
+        offset =
+          Math.floor(patternCycle / 2) * (first.height + second.height) +
+          (patternCycle % 2 ? first.height : 0);
+      }
+      return { ...spans, row: `${start + offset}/${end + offset}` };
+    }
+    return spans;
+  }
 
   // Determine which row pattern this item belongs to
   let currentPosition = 0;
@@ -598,45 +641,6 @@ export function getItemSpans(
 
   // Return the pattern item
   let spans = rowPattern[positionInRowPattern] || { col: 1, row: 1 };
-
-  // If we're beyond the first pattern cycle and using explicit row spans, adjust the row span starting point
-  if (patternCycle > 0 && isExplicitSpan(spans.row)) {
-    // Find the corresponding item in the previous pattern cycle
-    const itemIndexInPreviousCycle = index - itemsPerPattern;
-
-    let previousRowEnd = 1;
-    if (itemIndexInPreviousCycle >= 0) {
-      const previousSpans = getItemSpans(
-        itemIndexInPreviousCycle,
-        columns,
-        multiRowPattern,
-        mirror,
-      );
-
-      if (isExplicitSpan(previousSpans.row)) {
-        // Extract the end value from the explicit row span
-        previousRowEnd = parseInt(previousSpans.row.split("/")[1], 10);
-      } else {
-        // For numeric row spans, add the span to the start row (which is 1-based)
-        const rowSpan =
-          typeof previousSpans.row === "number"
-            ? previousSpans.row
-            : parseInt(previousSpans.row as string, 10);
-        previousRowEnd = 1 + rowSpan;
-      }
-    } else {
-      // If there's no previous cycle (shouldn't happen), increment the row span starting point by 1
-      previousRowEnd = patternCycle + 1;
-    }
-
-    spans = {
-      ...spans,
-      row: adjustExplicitRowSpanForRepeat({
-        explicitRowSpan: spans.row,
-        previousRowEnd,
-      }),
-    };
-  }
 
   return spans;
 }
